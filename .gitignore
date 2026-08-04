@@ -1,0 +1,23 @@
+# TRAE 内部配置
+.trae/
+
+# 无关项目
+isaac-clone/
+
+# 打包产物
+*.zip
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 缓存与日志
+cache/
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
