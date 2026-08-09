@@ -1,12 +1,13 @@
 <div align="center">
 
-# 流媒体链接解析下载技能（media-parser-skill）
+# 流媒体链接解析下载技能（media-parser-skills）
 
 _✨ 解析社交平台链接，提取视频/图片直链并下载到本地 ✨_
 
 [![License](https://img.shields.io/badge/License-AGPLv3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0.html)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Platforms](https://img.shields.io/badge/Platforms-10-orange.svg)](#-支持的平台)
+[![Version](https://img.shields.io/badge/Version-v2.0.0-green.svg)](https://github.com/Bigesila-B/media-parser-skills)
 
 </div>
 
@@ -14,14 +15,14 @@ _✨ 解析社交平台链接，提取视频/图片直链并下载到本地 ✨_
 
 ## 📖 项目简介
 
-`media-parser-skill` 是一个用于**识别媒体链接并下载视频/图片**的开源技能包，由两部分组成：
+`media-parser-skills` 是一个用于**识别媒体链接并下载视频/图片**的开源技能包，由两部分组成：
 
 | 目录 | 说明 |
 |------|------|
-| `media-parser/` | **AI 技能定义**（SKILL.md）：供 AI Agent（如 TRAE）识别人工智能场景下用户发送的社交平台链接，自动解析、下载并优先发送原文件 |
-| `astrbot_plugin_media_parser/` | **AstrBot 插件**（v6.3.1）：完整实现，支持解析、下载、翻译、打包发送等全部能力，可独立部署到 AstrBot 机器人 |
+| `media-parser/` | **AI 技能定义**（SKILL.md）：供 AI Agent（如 TRAE）识别用户发送的社交平台链接，自动解析、下载并**优先发送原文件** |
+| `astrbot_plugin_media_parser/` | **AstrBot 插件**（v6.3.1+）：完整实现，支持解析、下载、翻译、打包发送等全部能力，可独立部署到 AstrBot 机器人 |
 
-技能基于 AstrBot 插件能力封装，将「解析链接 → 提取直链 → 下载原文件 → 优先发送 `.mp4`/原图」的工作流固化，开箱即用。
+技能基于 AstrBot 插件能力封装，将「解析链接 → 提取直链 → 下载原文件 → 优先发送 `.mp4`/原图」的工作流固化，开箱即用。**AI Agent 可直接引用本仓库链接，识别到社交平台链接后自动执行下载。**
 
 ## 🎯 核心特性
 
@@ -29,6 +30,10 @@ _✨ 解析社交平台链接，提取视频/图片直链并下载到本地 ✨_
 - ✅ 自动识别消息中的平台链接（含短链、分享文案、小程序卡片）
 - ✅ 提取视频/图片**直链**并下载到本地缓存
 - ✅ **优先发送下载的原文件**（视频 `.mp4`、图片原图），非直链替代
+- ✅ 小红书支持 `xhslink.com` / `xhslink.cn` 双短链域名
+- ✅ 抖音图文作品（note/slides）视频与图片同时保留，过滤失效畸形链接
+- ✅ 图片格式转换：ffmpeg 缺失时自动回退 **Pillow** 转换
+- ✅ 图片下载遇 HTTP 403 风控自动重试
 - ✅ 支持 `--no-download` 仅提取直链模式，配合请求头可自行下载
 - ✅ 并发下载、Range 加速、DASH/M3U8 合并（需 ffmpeg）
 - ✅ 可选大模型翻译标题与正文、消息集合打包发送（插件模式）
@@ -43,7 +48,7 @@ _✨ 解析社交平台链接，提取视频/图片直链并下载到本地 ✨_
 | **TikTok** | `vm/vt.tiktok.com`、`tiktok.com/@../video/photo` | 视频 / 图片 / 文本 |
 | **快手** | `v.kuaishou.com`、`kuaishou.com`、`gifshow.com`、`chenzhongtech.com` | 视频 / 图片 / 文本 |
 | **微博** | `weibo.com`、`m.weibo.cn/detail`、`weibo.cn/status`、`video.weibo.com` | 视频 / 图片 / 文本 |
-| **小红书** | `xhslink.com`、`xiaohongshu.com/explore`、`discovery/item` | 视频 / 图片 / 文本 |
+| **小红书** | `xhslink.com`、`xhslink.cn`、`xiaohongshu.com/explore`、`discovery/item` | 视频 / 图片 / 文本 |
 | **闲鱼** | `m.tb.cn`、`goofish.com/item`、`h5.m.goofish.com/item` | 视频 / 图片 / 文本 |
 | **今日头条** | `m.toutiao.com/is`、`toutiao.com/article/video/w` | 视频 / 图片 / 文本 |
 | **小黑盒** | `xiaoheihe.cn/app/topic/game`、`xiaoheihe.cn/app/bbs/link` | 视频 / 图片 / 文本 |
@@ -71,21 +76,24 @@ python astrbot_plugin_media_parser/media_parser_cli.py "链接" --proxy http://1
 python astrbot_plugin_media_parser/media_parser_cli.py "链接" --output-dir D:/downloads --pretty
 ```
 
+> **运行前环境检查**：先执行 `python --version`、`python -c "import aiohttp, cryptography"`，缺失则 `python -m pip install aiohttp cryptography Pillow`。
+
 ### 方式二：作为 AstrBot 插件使用
 
-1. 依赖库：AstrBot WebUI → 控制台 → 安装 `aiohttp`、`cryptography`
+1. 依赖库：AstrBot WebUI → 控制台 → 安装 `aiohttp`、`cryptography`、`Pillow`
 2. 插件：AstrBot WebUI → 插件市场搜索 `astrbot_plugin_media_parser` 安装，或将本仓库 `astrbot_plugin_media_parser/` 放入插件目录
 
 ## 🔧 环境依赖
 
 - Python 3.10+
 - `aiohttp`、`cryptography`
+- `Pillow`（可选，ffmpeg 缺失时用于图片格式转换）
 - `ffmpeg`（DASH/M3U8 合并、图片格式转换、视频封面截取）
 
 ## 📦 目录结构
 
 ```
-media-parser-skill/
+media-parser-skills/
 ├── README.md                          # 本文档
 ├── LICENSE                            # AGPLv3 许可证
 ├── media-parser/
@@ -130,6 +138,10 @@ CLI 输出 JSON，核心字段：
 ```
 
 **发送原文件优先级**：`mode: local` 表示已下载原文件，Agent 应优先直接发送 `file_path` 指向的 `.mp4`/原图文件给用户，并附一行元数据摘要（标题 | 作者 | 大小）。
+
+## 📝 版本记录
+
+- **v2.0.0（2026-08-09）**：小红书 `xhslink.cn` 支持；抖音图文作品视频+图片同时保留并过滤畸形链接；Pillow 图片转换后备；图片 403 自动重试；SKILL.md 新增「发送原文件优先」与「运行前环境检查」；依赖增加 Pillow。完整变更见 `releases/v2.0.0/UPDATE_NOTES.md`。
 
 ## ⚠️ 注意事项
 
