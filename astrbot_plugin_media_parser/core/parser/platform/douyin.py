@@ -186,6 +186,23 @@ class DouyinParser(ShortVideoParserMixin, BaseVideoParser):
             )
         )
 
+    @staticmethod
+    def _is_malformed_playwm_url(url: str) -> bool:
+        """判断是否为失效的畸形 playwm 链接。
+
+        抖音部分图文作品返回的 url_list 形如
+        `playwm/?video_id=https://xxx.douyinstatic.com/...`，
+        其中 video_id 参数值本身是一个完整 URL，此类链接请求必返回 404。
+        """
+        normalized = str(url or "").lower()
+        if "playwm" not in normalized or "video_id=" not in normalized:
+            return False
+        match = re.search(r"video_id=([^&]+)", normalized)
+        if not match:
+            return False
+        value = match.group(1)
+        return "://" in value or value.startswith("http")
+
     def _extract_douyin_play_addr_urls(self, play_addr: Any) -> List[str]:
         urls: List[str] = []
         if not play_addr:
@@ -216,6 +233,7 @@ class DouyinParser(ShortVideoParserMixin, BaseVideoParser):
             url
             for url in urls
             if self._looks_like_video_url(url)
+            and not self._is_malformed_playwm_url(url)
         ]
 
     def _extract_douyin_video_url_list(
@@ -408,7 +426,7 @@ class DouyinParser(ShortVideoParserMixin, BaseVideoParser):
         self,
         item_info: Dict[str, Any]
     ) -> tuple[List[List[str]], List[List[str]], List[List[str]]]:
-        """提取视频段和图片段；视频存在时不再把条目降级成图集。"""
+        """提取视频段和图片段；图文作品同时保留视频与图片。"""
         video_url_lists: List[List[str]] = []
         image_url_lists: List[List[str]] = []
         video_cover_url_lists: List[List[str]] = []
@@ -421,7 +439,6 @@ class DouyinParser(ShortVideoParserMixin, BaseVideoParser):
             video_cover_url_lists.append(
                 self._extract_douyin_video_cover_url_list(item_info.get("video"))
             )
-            return video_url_lists, image_url_lists, video_cover_url_lists
 
         for image_item in item_info.get("images") or []:
             slide_video_urls = self._extract_douyin_slide_video_url_list(
