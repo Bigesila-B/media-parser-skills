@@ -13,8 +13,19 @@ from ..validator import validate_media_response
 from ...constants import Config
 
 
-def _is_retryable_exception(exc: BaseException) -> bool:
-    """判断异常是否适合短暂重试。"""
+def _is_retryable_exception(
+    exc: BaseException,
+    *,
+    allow_image_403: bool = False,
+) -> bool:
+    """判断异常是否适合短暂重试。
+
+    Args:
+        exc: 捕获的异常
+        allow_image_403: 是否允许对 HTTP 403 重试。图片 CDN 的 403 多为
+            偶发风控，重试常可成功；视频 403 多为永久拒绝（如缺少
+            referer），默认不重试。
+    """
     if isinstance(exc, asyncio.CancelledError):
         return False
     retryable_types = (
@@ -27,6 +38,8 @@ def _is_retryable_exception(exc: BaseException) -> bool:
     if isinstance(exc, retryable_types):
         return True
     if isinstance(exc, aiohttp.ClientResponseError):
+        if allow_image_403 and exc.status == 403:
+            return True
         return exc.status in {408, 425, 429, 500, 502, 503, 504}
     return False
 
@@ -369,7 +382,9 @@ async def download_media_from_url(
         except Exception as e:
             last_error = e
             last_status_code = _status_code_from_exception(e) or last_status_code
-            if attempt < attempts and _is_retryable_exception(e):
+            if attempt < attempts and _is_retryable_exception(
+                e, allow_image_403=not is_video
+            ):
                 logger.debug(
                     f"下载媒体失败，将重试({attempt}/{attempts}): "
                     f"{media_url}, 错误: {_format_download_error(e)}"
@@ -389,4 +404,3 @@ async def download_media_from_url(
         last_status_code,
         _format_download_error(last_error) if last_error else "下载失败"
     )
-

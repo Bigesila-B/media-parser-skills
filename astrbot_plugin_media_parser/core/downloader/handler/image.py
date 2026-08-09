@@ -57,6 +57,29 @@ async def _terminate_ffmpeg_conversion(process, input_path: str) -> None:
         logger.warning(f"回收 ffmpeg 进程失败: {input_path}, 错误: {e}")
 
 
+def _convert_image_with_pillow(input_path: str, output_path: str) -> bool:
+    """使用 Pillow 转换图片格式（ffmpeg 不可用时的后备方案）。
+
+    Args:
+        input_path: 输入图片路径
+        output_path: 输出 PNG 路径
+
+    Returns:
+        转换是否成功
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        return False
+    try:
+        with Image.open(input_path) as img:
+            img.save(output_path, "PNG")
+        return True
+    except Exception as e:
+        logger.warning(f"Pillow 转换图片失败: {input_path}, 错误: {e}")
+        return False
+
+
 async def _convert_image_to_png(input_path: str, output_path: str) -> bool:
     """使用 ffmpeg 将图片转换为 PNG 格式（异步版本）
     
@@ -94,7 +117,13 @@ async def _convert_image_to_png(input_path: str, output_path: str) -> bool:
                 logger.warning(f"ffmpeg 转换图片失败: {input_path}")
                 return False
     except FileNotFoundError:
-        logger.warning("ffmpeg 未找到，无法转换图片格式")
+        logger.warning("ffmpeg 未找到，尝试使用 Pillow 转换图片格式")
+        if await asyncio.to_thread(
+            _convert_image_with_pillow, input_path, output_path
+        ):
+            logger.debug(f"图片已使用 Pillow 转换为 PNG: {output_path}")
+            return True
+        logger.warning("Pillow 不可用或转换失败，无法转换图片格式")
         return False
     except Exception as e:
         logger.warning(f"ffmpeg 转换图片异常: {input_path}, 错误: {e}")
@@ -180,4 +209,3 @@ async def download_image_to_cache(
         'status_code': status_code,
         'error': None
     }
-
