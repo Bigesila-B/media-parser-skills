@@ -25,7 +25,7 @@ description: "解析社交平台链接（B站/抖音/TikTok/快手/微博/小红
 | TikTok | `vm.tiktok.com/xxx`、`vt.tiktok.com/xxx`、`tiktok.com/@.../video/...`、`tiktok.com/@.../photo/...` |
 | 快手 | `v.kuaishou.com/xxx`、`kuaishou.com/...`、`gifshow.com/...`、`chenzhongtech.com/...` |
 | 微博 | `weibo.com/...`、`m.weibo.cn/detail/...`、`weibo.cn/status/...`、`video.weibo.com/show?fid=...` |
-| 小红书 | `xhslink.com/xxx`、`xiaohongshu.com/explore/...`、`xiaohongshu.com/discovery/item/...` |
+| 小红书 | `xhslink.com/xxx`、`xhslink.cn/xxx`、`xiaohongshu.com/explore/...`、`xiaohongshu.com/discovery/item/...` |
 | 闲鱼 | `m.tb.cn/xxx`、`goofish.com/item?id=...`、`h5.m.goofish.com/item?id=...` |
 | 今日头条 | `m.toutiao.com/is/xxx`、`toutiao.com/article/...`、`toutiao.com/video/...`、`toutiao.com/w/...` |
 | 小黑盒 | `xiaoheihe.cn/app/topic/game/...`、`xiaoheihe.cn/app/bbs/link/...` |
@@ -140,10 +140,21 @@ echo "链接文本" | python astrbot_plugin_media_parser/media_parser_cli.py
 
 ## 执行后的操作指南
 
-1. **解析成功 + 下载成功**：向用户展示标题、作者、简介等元数据，告知下载的文件路径
-2. **解析成功 + 部分跳过**：展示成功部分，说明跳过原因（如"缓存目录不可用""视频过大""403 访问被拒绝"）
+1. **解析成功 + 下载成功**：**优先将下载的媒体原文件发送给用户**（视频发送 `.mp4` 原文件、图片发送原图文件），而不是只展示元数据文本。发送规则见下方「发送原文件」小节。
+2. **解析成功 + 部分跳过**：展示成功部分（按规则优先发送原文件），说明跳过原因（如"缓存目录不可用""视频过大""403 访问被拒绝"）
 3. **解析失败**：告知用户解析失败，展示 `error` 字段中的错误信息
 4. **未找到链接**：`total_links` 为 0，告知用户未在文本中检测到支持的社交平台链接
+
+### 发送原文件（优先执行）
+
+解析结果中 `mode` 为 `local` 的视频/图片（`file_path` 有值），即已下载到本地的原文件。按以下优先级回复用户：
+
+1. **直接发送原文件**：将 `videos[].file_path`（如 `xxx/video_0.mp4`）和 `images[].file_path`（如 `xxx/image_0.jpg`）指向的本地原文件直接发送给用户（如通过 `computer://` 文件分享链接），这是最高优先级，不要用直链或文本替代。
+2. **附上元数据摘要**：发送原文件的同时，附带一行简洁摘要，包含标题、作者、时长/大小（如 `标题 | 作者 | 3.94 MB`），方便用户确认内容。
+3. **全部发送**：同一链接解析出多个视频/图片时，将下载成功的原文件**全部**发送给用户，不要只发第一个。
+4. **兜底回退**：仅当当前环境确实无法直接发送文件时，才回退为展示元数据 + 告知 `file_path` 绝对路径，并说明文件已就绪可自行打开。
+
+注意：`mode` 为 `direct` / `not_downloaded` 时没有本地文件，按原有逻辑处理（提供直链与 `headers` 或提示下载失败原因）。
 
 ## 平台特性与注意事项
 
@@ -165,7 +176,29 @@ echo "链接文本" | python astrbot_plugin_media_parser/media_parser_cli.py
 
 - Python 3.10+
 - `aiohttp`、`cryptography` 库
+- `Pillow`（可选，ffmpeg 缺失时用于图片格式转换）
 - `ffmpeg`（用于 DASH/M3U8 合并、图片格式转换、视频封面截取）
+
+### 运行前环境检查（必做）
+
+调用脚本前，先执行以下检查，缺失依赖先安装再解析，避免运行时报错：
+
+```bash
+# 1. 确认 python 可执行（若提示找不到 python，改用完整路径或激活对应环境）
+python --version
+
+# 2. 确认核心库已安装（aiohttp / cryptography）
+python -c "import aiohttp, cryptography"
+
+# 3. 若缺失，安装依赖
+python -m pip install aiohttp cryptography Pillow
+
+# 4.（可选）确认 ffmpeg 存在；缺失时图片会尝试用 Pillow 转 PNG，
+#    DASH/M3U8 合并功能不可用
+ffmpeg -version
+```
+
+检查未通过时：先安装缺失依赖再继续；若无法安装（如无网络/权限），告知用户解析可能受限（如图片保持原格式、DASH/M3U8 无法合并），并继续尝试解析。
 
 ## 示例场景
 
